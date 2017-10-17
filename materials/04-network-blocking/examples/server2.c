@@ -39,6 +39,7 @@ int main()
         if ( (p = fork()) == 0 ) {
             close(MasterSock);
 
+
             do {
                 bzero(str, sizeof(str));
                 if ((rval = read(SlaveSock, str, 1024)) < 0)

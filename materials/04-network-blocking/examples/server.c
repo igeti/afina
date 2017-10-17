@@ -31,7 +31,7 @@ int main()
     while(1)
     {
     	SlaveSock = accept(MasterSock, (struct sockaddr*) NULL, NULL);
-
+    sleep(5);
 	char *str = "HELLO!\r\n";
  
         write(SlaveSock, str, strlen(str)+1);

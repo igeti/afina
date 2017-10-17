@@ -33,6 +33,16 @@ void *ServerImpl::RunAcceptorProxy(void *p) {
     return 0;
 }
 
+void *ServerImpl::RunConnectionProxy(void *p) {
+    ServerImpl *srv = reinterpret_cast<ServerImpl *>(p);
+    try {
+        srv->RunConnection();
+    } catch (std::runtime_error &ex) {
+        std::cerr << "Server fails: " << ex.what() << std::endl;
+    }
+    return 0;
+}
+
 // See Server.h
 ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps) : Server(ps) {}
 
@@ -157,9 +167,10 @@ void ServerImpl::RunAcceptor() {
         throw std::runtime_error("Socket listen() failed");
     }
 
-    int client_socket;
+
     struct sockaddr_in client_addr;
     socklen_t sinSize = sizeof(struct sockaddr_in);
+    std::unique_lock<std::mutex> lock(client_lock);
     while (running.load()) {
         std::cout << "network debug: waiting for connection..." << std::endl;
 
@@ -169,17 +180,42 @@ void ServerImpl::RunAcceptor() {
             close(server_socket);
             throw std::runtime_error("Socket accept() failed");
         }
-
-        // TODO: Start new thread and process data from/to connection
+        // ждем пока сдохнут
+        for (auto i = connections.begin(); i != connections.end(); /*FIXME*/)
         {
-            std::string msg = "TODO: start new thread and process memcached protocol instead";
-            if (send(client_socket, msg.data(), msg.size(), 0) <= 0) {
-                close(client_socket);
-                close(server_socket);
-                throw std::runtime_error("Socket send() failed");
+            if(pthread_kill(*i, 0) != 0)
+            {
+                pthread_join(*i, nullptr);
+
+                i = connections.erase(i);
             }
-            close(client_socket);
+            else i++;
         }
+
+        if (connections.size()< max_workers)
+        {
+            pthread_t client_thread;
+            client_ok = false;
+            pthread_create(&client_thread, nullptr, RunConnectionProxy, this);
+            while (!client_ok) {
+                variable_lock.wait(lock);
+            }
+            connections.push_back(client_thread);
+        }
+        else
+        {
+            shutdown(client_socket,SHUT_RDWR);
+            close(client_socket);
+
+        }
+        //
+    }
+
+    for (auto i = connections.begin(); i != connections.end(); /*FIXME*/)
+    {
+
+        pthread_join(*i, nullptr);
+        i++;
     }
 
     // Cleanup on exit...
@@ -187,8 +223,18 @@ void ServerImpl::RunAcceptor() {
 }
 
 // See Server.h
-void ServerImpl::RunConnection() { std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl; }
+void ServerImpl::RunConnection() {
+        int client;
+        {
+            std::lock_guard<std::mutex> lock(client_lock);
+            client = client_socket;
+            client_ok = true;
+            variable_lock.notify_one();
+        }
+        std::cout << client << std::endl;
 
+        close(client);
+    }
 } // namespace Blocking
 } // namespace Network
 } // namespace Afina

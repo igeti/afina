@@ -6,6 +6,9 @@
 #include <pthread.h>
 
 #include <afina/network/Server.h>
+#include <protocol/Parser.h>
+#include <mutex>
+#include <condition_variable>
 
 namespace Afina {
 namespace Network {
@@ -42,12 +45,16 @@ protected:
 
 private:
     static void *RunAcceptorProxy(void *p);
+    static void *RunConnectionProxy(void *p);
 
     // Atomic flag to notify threads when it is time to stop. Note that
     // flag must be atomic in order to safely publisj changes cross thread
     // bounds
     std::atomic<bool> running;
-
+    int client_socket;
+    std::mutex client_lock;
+    std::condition_variable variable_lock;
+    bool client_ok;
     // Thread that is accepting new connections
     pthread_t accept_thread;
 
