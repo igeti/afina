@@ -1,10 +1,13 @@
 #include "MapBasedGlobalLockImpl.h"
 #include <iostream>
 
+#include <mutex>
+
 namespace Afina {
     namespace Backend {
 
 // See MapBasedGlobalLockImpl.h
+
         bool MapBasedGlobalLockImpl::Put(const std::string &key, const std::string &value) {
 
             std::map<std::string, std::string>::iterator it = this->map.find(key);
