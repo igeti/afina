@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include <afina/Storage.h>
+#include <afina/execute/Command.h>
 
 namespace Afina {
 namespace Network {
@@ -219,10 +220,14 @@ void ServerImpl::RunAcceptor() {
     }
 
     // Cleanup on exit...
+    shutdown(server_socket,SHUT_RDWR);
     close(server_socket);
 }
 
-// See Server.h
+static const size_t read_buffer_size = 256;
+
+
+    // See Server.h
 void ServerImpl::RunConnection() {
         int client;
         {
@@ -231,9 +236,98 @@ void ServerImpl::RunConnection() {
             client_ok = true;
             variable_lock.notify_one();
         }
-        std::cout << client << std::endl;
 
-        close(client);
+        Protocol::Parser parser;
+        std::vector<char> buf;
+        buf.resize(read_buffer_size);
+        size_t parsed = 0;
+        size_t offset = 0;
+
+        for (;;) {
+            std::string out;
+            bool bail_out = false;
+            // both parser and command may throw exceptions
+            try {
+                ssize_t received = 0;
+                // parse first because we may have saved this from the first iteration
+                while (!parser.Parse(buf.data() + parsed, offset - parsed, parsed)) {
+                    // move excess data to the beginning of the buffer
+                    memmove(buf.data(), buf.data() + parsed, offset - parsed);
+                    offset -= parsed;
+                    // append whatever the client may have sent
+                    received = recv(client, buf.data() + offset, buf.size() - offset, 0);
+                    if (received <= 0) { // client bails out, no command to execute
+                        shutdown(client, SHUT_RDWR);
+                        close(client);
+                        return;
+                    } else
+                        offset += received;
+                }
+
+                // parser.Parse returned true -- can build a command now
+                uint32_t arg_size;
+                auto cmd = parser.Build(arg_size);
+                parser.Reset(); // don't forget
+
+                std::string arg;
+                // was there an argument?
+                if (arg_size) {
+                    arg_size += 2; // data is followed by \r\n
+                    if (arg_size > buf.size())
+                        buf.resize(arg_size);
+
+                    if (offset - parsed) { // we've read body with the command
+                        // move everything we have to the beginning
+                        memmove(buf.data(), buf.data() + parsed, offset - parsed);
+                        offset -= parsed; // and account for it
+                    }
+
+                    while (offset < arg_size) { // append the body we know the size of
+                        received = recv(client, buf.data() + offset, buf.size() - offset, 0);
+                        if (received <= 0) { // client bails out, no data to store
+                            shutdown(client, SHUT_RDWR);
+                            close(client);
+                            return;
+                        }
+                        offset += received;
+                    }
+                    // prepare the body
+                    arg.assign(buf.data(), arg_size - 2 /* account for extra \r\n */);
+                    // move the remainings of the buffer to the beginning and fix offsets & sizes
+                    memmove(buf.data(), buf.data() + arg_size, offset - arg_size);
+                    parsed = 0;
+                    offset -= arg_size;
+                }
+
+                // time to do the deed
+                cmd->Execute(*pStorage, arg, out);
+            } catch (std::runtime_error &e) {
+                // if anything fails we just report the error to the user
+                out = std::string("CLIENT_ERROR ") + e.what();
+                bail_out = true;
+            }
+
+            if (out.size()) {
+                out += std::string("\r\n");
+                size_t offset = 0;
+                ssize_t sent;
+                while (offset < out.size()) { // classical "send until nothing left or error" loop
+                    sent = send(client, out.data() + offset, out.size() - offset, 0);
+                    if (sent <= 0) { // client bails out, reply not sent
+                        shutdown(client, SHUT_RDWR);
+                        close(client);
+                        return;
+                    }
+                    offset += sent;
+                }
+                if (bail_out) {
+                    shutdown(client, SHUT_RDWR);
+                    close(client);
+                    return;
+                }
+            }
+
+        }
     }
 } // namespace Blocking
 } // namespace Network
