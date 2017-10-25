@@ -1,13 +1,20 @@
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <memory>
-#include <uv.h>
+#include <pthread.h> // pthread_sigmask
+#include <signal.h>  // sigset_t
+#include <stdlib.h>  // realpath
+#include <sys/stat.h>  // umask
+#include <sys/types.h> // getpid
+#include <unistd.h>
 
 #include <cxxopts.hpp>
 
 #include <afina/Storage.h>
 #include <afina/Version.h>
 #include <afina/network/Server.h>
+
 
 #include "network/blocking/ServerImpl.h"
 #include "network/uv/ServerImpl.h"
@@ -48,6 +55,8 @@ int main(int argc, char **argv) {
         // and simplify validation below
         options.add_options()("s,storage", "Type of storage service to use", cxxopts::value<std::string>());
         options.add_options()("n,network", "Type of network service to use", cxxopts::value<std::string>());
+        options.add_options()("d,daemonize", "Daemonize to background"); // boolean by default
+        options.add_options()("p,pidfile", "Path of pidfile", cxxopts::value<std::string>());
         options.add_options()("h,help", "Print usage info");
         options.parse(argc, argv);
 
@@ -93,6 +102,63 @@ int main(int argc, char **argv) {
     // Init local loop. It will react to signals and performs some metrics collections. Each
     // subsystem is able to push metrics actively, but some metrics could be collected only
     // by polling, so loop here will does that work
+    {
+        std::ofstream pfs;
+        if (options.count("pidfile")) {
+            std::string pidfile = options["pidfile"].as<std::string>();
+            // real path storage
+            std::unique_ptr<char, decltype(&std::free)> rpath{nullptr, &std::free};
+            // create the pidfile and prepare to write
+            pfs.open(pidfile.c_str());
+            // store the *real* path because we may chdir later
+            rpath.reset(realpath(pidfile.c_str(), nullptr));
+            if (!rpath)
+                throw std::runtime_error("Failed to get real path of PID file");
+
+            pidfile.assign(rpath.get());
+        }
+        if (options.count("daemonize")) {
+            // 1. fork() off to
+            //  a. return the control to the shell
+            //  b. *not* to remain a process group leader
+            pid_t pid = fork();
+            if (pid < 0) {
+                std::cerr << "Failed to fork()" << std::endl;
+                return 1;
+            } else if (pid > 0) // parent should exit
+                return 0;
+
+            // 2. setsid() to become a process+session group leader
+            //  (we won't have a controlling terminal this way)
+            if (setsid() == -1)
+                return 1; // Probably shouldn't print anything at this point
+
+            // 3. fork() off again, leaving the session group without a leader
+            //  (this makes sure we stay without a controlling terminal forever)
+            if ((pid = fork()) < 0)
+                return 1;
+            else if (pid > 0)
+                return 0;
+
+            // 4. Don't occupy directory handles if we can help it
+            chdir("/");
+            // 5. Whatever umask we inherited, drop it
+            umask(0);
+
+            // 6. (cin/cout/cerr are tied to stdin/stdout/stderr)
+            freopen("/dev/null", "r", stdin);
+            freopen("/dev/null", "w", stdout);
+            freopen("/dev/null", "w", stderr);
+        }
+        if (pfs) { // we were asked to create a pidfile - now is time to fill it
+            pfs << getpid() << std::endl;
+        }
+    }
+
+
+
+
+
     uv_loop_t loop;
     uv_loop_init(&loop);
 
