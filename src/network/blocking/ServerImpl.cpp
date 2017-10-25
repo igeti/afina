@@ -267,10 +267,7 @@ void ServerImpl::RunConnection() {
                 // parser.Parse returned true -- can build a command now
                 uint32_t arg_size;
                 auto cmd = parser.Build(arg_size);
-
-
                 parser.Reset(); // don't forget
-
 
                 std::string arg;
                 // was there an argument?
@@ -303,10 +300,7 @@ void ServerImpl::RunConnection() {
                 }
 
                 // time to do the deed
-
                 cmd->Execute(*pStorage, arg, out); // ловим исклчюение и выдаем его ниже
-
-
             } catch (std::runtime_error &e) {
                 // if anything fails we just report the error to the user
                 out = std::string("CLIENT_ERROR ") + e.what();
