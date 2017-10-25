@@ -201,7 +201,7 @@ void ServerImpl::RunAcceptor() {
             while (!client_ok) {
                 variable_lock.wait(lock);
             }
-            connections.push_back(client_thread);
+            connections.insert(client_thread);
         }
         else
         {
