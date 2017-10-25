@@ -43,9 +43,11 @@ namespace Afina {
                     this->age.erase(this -> age.begin());
                     this->map.insert(std::make_pair(key, value));
                 }
+                return true;
+                this -> age.push_back(key);
             }
-            this -> age.push_back(key);
-            return true;
+
+            return false;
         }
 
 // See MapBasedGlobalLockImpl.h
