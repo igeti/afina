@@ -222,7 +222,14 @@ void ServerImpl::RunAcceptor() {
     // Cleanup on exit...
     shutdown(server_socket,SHUT_RDWR);
     close(server_socket);
+
+    // Wait until for all connections to be complete
+    std::unique_lock<std::mutex> __lock(connections_mutex);
+    while (!connections.empty()) {
+        connections_cv.wait(__lock);
+    }
 }
+
 
 static const size_t read_buffer_size = 256;
 
