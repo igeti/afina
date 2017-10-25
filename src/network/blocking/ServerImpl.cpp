@@ -254,6 +254,7 @@ void ServerImpl::RunConnection() {
                     // move excess data to the beginning of the buffer
                     memmove(buf.data(), buf.data() + parsed, offset - parsed);
                     offset -= parsed;
+                    parsed = 0;
                     // append whatever the client may have sent
                     received = recv(client, buf.data() + offset, buf.size() - offset, 0);
                     if (received <= 0) { // client bails out, no command to execute
