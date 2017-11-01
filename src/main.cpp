@@ -18,6 +18,7 @@
 
 #include "network/blocking/ServerImpl.h"
 #include "network/nonblocking/ServerImpl.h"
+#include "network/epoll/ServerImpl.h"
 #include "network/uv/ServerImpl.h"
 #include "storage/MapBasedGlobalLockImpl.h"
 
