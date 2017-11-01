@@ -42,6 +42,7 @@ alarm(5);
 ok(close($stdin), "Putting Afina to background");
 (threads::->create(sub { my $fh = $_[0]; while(<$fh>) { $silent || note "afina: $_" } }, $stdout))->detach();
 
+sleep(0.1);
 alarm(10);
 
 sub afina_request_silent { # 0 tests
