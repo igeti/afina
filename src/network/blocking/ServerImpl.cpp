@@ -69,29 +69,7 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
     max_workers = n_workers;
     listen_port = port;
 
-    // The pthread_create function creates a new thread.
-    //
-    // The first parameter is a pointer to a pthread_t variable, which we can use
-    // in the remainder of the program to manage this thread.
-    //
-    // The second parameter is used to specify the attributes of this new thread
-    // (e.g., its stack size). We can leave it NULL here.
-    //
-    // The third parameter is the function this thread will run. This function *must*
-    // have the following prototype:
-    //    void *f(void *args);
-    //
-    // Note how the function expects a single parameter of type void*. We are using it to
-    // pass this pointer in order to proxy call to the class member function. The fourth
-    // parameter to pthread_create is used to specify this parameter value.
-    //
-    // The thread we are creating here is the "server thread", which will be
-    // responsible for listening on port 23300 for incoming connections. This thread,
-    // in turn, will spawn threads to service each incoming connection, allowing
-    // multiple clients to connect simultaneously.
-    // Note that, in this particular example, creating a "server thread" is redundant,
-    // since there will only be one server thread, and the program's main thread (the
-    // one running main()) could fulfill this purpose.
+
     running.store(true);
     if (pthread_create(&accept_thread, NULL, ServerImpl::RunAcceptorProxy, this) < 0) {
         throw std::runtime_error("Could not create server thread");
