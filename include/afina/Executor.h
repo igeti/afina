@@ -28,7 +28,12 @@ class Executor {
     };
 
     Executor(std::string name, int size);
-    ~Executor();
+    ~Executor()
+    {
+        Stop (true);
+    }
+
+
 
     /**
      * Signal thread pool to stop, it will stop accepting new jobs and close threads just after each become
@@ -36,7 +41,23 @@ class Executor {
      *
      * In case if await flag is true, call won't return until all background jobs are done and all threads are stopped
      */
-    void Stop(bool await = false);
+    void Stop(bool await = false)
+    {
+        if (state == State::kStopped)
+            return;
+
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            state = State::kStopping;
+        }
+
+        empty_condition.notify_all();
+        if (await)
+            for(std::thread &thread: threads)
+                thread.join();
+
+        state = State::kStopped;
+    }
 
     /**
      * Add function to be executed on the threadpool. Method returns true in case if task has been placed
@@ -98,6 +119,38 @@ private:
     State state;
 };
 
+
+    void perform (Executor *executor)
+    {
+        while (true)
+        {
+            std::function<void()> task;
+
+            {
+                std::unique_lock<std::mutex> lock(executor->mutex);
+                executor->empty_condition.wait(lock, (executor->state == Executor::State::kStopping || !executor->tasks.empty()));
+
+                if (executor->state == Executor::State::kStopping && executor->tasks.empty())
+                    return;
+
+                task = executor->tasks.front();
+                executor->tasks.pop_front();
+            }
+
+            task();
+        }
+    }
+
+
+    Executor::Executor (std::string name, int size)
+    {
+        for (int i = 0; i < size; i++)
+        {
+            threads.emplace_back(perform,this);
+        }
+        name = "my first pool";
+        state = State::kRun;
+    }
 } // namespace Afina
 
 #endif // AFINA_THREADPOOL_H
