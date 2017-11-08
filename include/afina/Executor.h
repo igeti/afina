@@ -128,7 +128,8 @@ private:
 
             {
                 std::unique_lock<std::mutex> lock(executor->mutex);
-                executor->empty_condition.wait(lock, (executor->state == Executor::State::kStopping || !executor->tasks.empty()));
+                executor->empty_condition.wait(lock,
+                                               [&executor]{ return executor->state == Executor::State::kStopping || !executor->tasks.empty(); });
 
                 if (executor->state == Executor::State::kStopping && executor->tasks.empty())
                     return;
