@@ -10,7 +10,7 @@ namespace Coroutine {
 void Engine::Store(context &ctx) {
     char a;        // узнаем где мы
     char* top = &a;
-    ptrdiff_t len =  StackBottom - top; // размер буфера для локальных переменных
+    std::ptrdiff_t len =  StackBottom - top; // размер буфера для локальных переменных
     delete [](std::get<0>(ctx.Stack)); // предотвращаю утечки
     std::get<0>(ctx.Stack) = new char[len]; // в поле тупла который отвечает за буфер создаем буфер
     std::get<1>(ctx.Stack)  = len;
@@ -32,15 +32,23 @@ void Engine::Restore(context &ctx) {
 
 }
 
-void Engine::yield() {}
+void Engine::yield() {
+    if (alive){
+        context * bob = alive; // вытаскиваем из очереди и запускам
+        alive = alive -> next;
+        alive -> prev = nullptr;
+        sched(bob);
+    }
+
+}
 
 void Engine::sched(void *routine_) {
     context * ctx = (context*)routine_; // получаем дсотпуп к context
     if (cur_routine != nullptr){ // сохранение контекста
         cur_routine->callee = ctx;  //  делаем список
         ctx -> caller = cur_routine;
-        Store(*ctx); // сохраняем
-        if (setjmp(ctx -> Environment) !=0){ // если в нас перпрыгнули
+        Store(*cur_routine); // сохраняем
+        if (setjmp(cur_routine -> Environment) !=0){ // если в нас перпрыгнули
             return;
         }
     }
