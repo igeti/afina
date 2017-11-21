@@ -4,11 +4,12 @@ set(SOURCE_FILES
     uv/Worker.cpp
 
     blocking/ServerImpl.cpp
-        epoll/ServerImpl.cpp
-   nonblocking/ServerImpl.cpp
-   nonblocking/Worker.cpp
-    nonblocking/Utils.cpp
+
 )
+
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    set(SOURCE_FILES "${SOURCE_FILES};epoll/ServerImpl.cpp")
+endif()
 
 add_library(Network ${SOURCE_FILES})
 target_link_libraries(Network pthread uv Protocol Execute ${CMAKE_THREAD_LIBS_INIT})

@@ -111,7 +111,7 @@ namespace Afina {
             };
 
             static int epoll_modify(int epoll_fd, int how, uint32_t events, ep_fd &target) {
-                struct epoll_event new_ev {
+                struct epoll_event new_ev {  // создаем структуры для epoll_ctl
                         events, { (void *)&target }
                 };
                 return epoll_ctl(epoll_fd, how, target.fd, &new_ev);
@@ -253,6 +253,9 @@ namespace Afina {
                 }
             };
 
+
+
+
             const size_t num_events = 10;   // events at a time
             const int epoll_timeout = 5000; // ms, to check every now and then that we still need to be running
 
@@ -299,8 +302,8 @@ namespace Afina {
                     throw std::runtime_error("Couldn't set O_NONBLOCK to server socket");
 
                 // prepare the necessary objects to handle clients
-                std::list<client_fd> client_list;
-                listen_fd listening_object{server_socket, epoll_sock, pStorage, client_list};
+                std::list<client_fd> client_list; // не портит итераторы
+                listen_fd listening_object{server_socket, epoll_sock, pStorage, client_list}; // все точ то передаем клиентам, обьект который слушает
                 // add the listen socket to the epoll set
                 if (epoll_modify(epoll_sock, EPOLL_CTL_ADD, EPOLLIN | EPOLLET, listening_object))
                     throw std::runtime_error("epoll_ctl failed to add the listen socket");
