@@ -72,7 +72,6 @@ protected:
      * Save stack of the current coroutine in the given context
      */
     void Store(context &ctx);
-
     /**
      * Restore stack of the given context and pass control to coroutinne
      */
