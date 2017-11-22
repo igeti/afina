@@ -45,6 +45,22 @@ private:
         // To include routine in the different lists, such as "alive", "blocked", e.t.c
         struct context *prev = nullptr;
         struct context *next = nullptr;
+
+        ~context(){
+            if (prev != nullptr) {
+                prev->next = next;
+            }
+
+            if (next != nullptr) {
+                next->prev = prev;
+            }
+
+            if (caller != nullptr) {
+                caller->callee = nullptr;
+            }
+
+            delete[] std::get<0>(Stack);
+        }
     } context;
 
     /**
@@ -169,17 +185,6 @@ public:
             // time. Function run() has already return once (when setjmp returns 0), so return second return from run
             // would looks a bit awkward
             context *next = pc->caller;
-            if (pc->prev != nullptr) {
-                pc->prev->next = pc->next;
-            }
-
-            if (pc->next != nullptr) {
-                pc->next->prev = pc->prev;
-            }
-
-            if (pc->caller != nullptr) {
-                pc->caller->callee = nullptr;
-            }
 
             if (alive == cur_routine) {
                 alive = alive->next;
@@ -188,8 +193,6 @@ public:
             // current coroutine finished, and the pointer is not relevant now
             cur_routine = nullptr;
 
-            pc->prev = pc->next = nullptr;
-            delete std::get<0>(pc->Stack);
             delete pc;
 
             // We cannot return here, as this function "returned" once already, so here we must select some other

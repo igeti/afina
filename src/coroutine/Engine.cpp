@@ -19,8 +19,8 @@ void Engine::Store(context &ctx) {
 }
 
 void Engine::Restore(context &ctx) {
-    char a;             // узнаем где мы
-    char* top = &a;
+    volatile char a;             // узнаем где мы
+    char* top = (char*)&a;
     if((char*)&a > StackBottom - std::get<1>(ctx.Stack)){
         uint64_t filler_iv =0; //заполнение быстрее чем прсото с рекурсией
         Restore(ctx); // рекурсия чтобы остуупить в безопасную зону
@@ -34,9 +34,9 @@ void Engine::Restore(context &ctx) {
 
 void Engine::yield() {
     if (alive){
-        context * bob = alive; // вытаскиваем из очереди и запускам
-        alive = alive -> next;
+        context * bob = alive; // вытаскиваем из очереди и запуска
         alive -> prev = nullptr;
+        alive = alive -> next;
         sched(bob);
     }
 
@@ -44,9 +44,9 @@ void Engine::yield() {
 
 void Engine::sched(void *routine_) {
     context * ctx = (context*)routine_; // получаем дсотпуп к context
+    ctx->caller = cur_routine;
     if (cur_routine != nullptr){ // сохранение контекста
         cur_routine->callee = ctx;  //  делаем список
-        ctx -> caller = cur_routine;
         Store(*cur_routine); // сохраняем
         if (setjmp(cur_routine -> Environment) !=0){ // если в нас перпрыгнули
             return;
